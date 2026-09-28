@@ -14,13 +14,27 @@ const X: Record<string, Shape[]> = {
   out: ['M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4', 'm16 17 5-5-5-5', 'M21 12H9'],
 };
 
+type Ev = { id: string; title: string; start: string; end?: string; allDay: boolean; sourceId?: string; location?: string };
+
 export default function DayAhead({ config, style, timezone, units, ...rest }: PluginComponentProps & { units?: string; timeFormat?: string }) {
   const now = useNow(60000);
   const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const accent = String(config.accentColor || '#059669');
-  const leaveM = parseHM(String(config.leaveTime || '07:30')), backM = parseHM(String(config.returnTime || '17:30'));
   const from = Number(config.fromHour ?? 6), to = Number(config.toHour ?? 22);
   const tomorrow = localHM(now, tz) >= Number(config.switchToTomorrowAt ?? 20) * 60;
+  // first portion = next calendar event, second portion = end of the day's last event (usual times as fallback)
+  const person = String(config.personName ?? '').trim().toLowerCase();
+  const ids: string[] | null = person ? (((rest as any).people ?? []) as { name: string; sourceIds?: string[] }[]).find((p) => p.name.toLowerCase() === person)?.sourceIds ?? [] : null;
+  const dayStr = dayKey(new Date(now.getTime() + (tomorrow ? 86400000 : 0)), tz);
+  const timed = (((rest as any).events ?? []) as Ev[])
+    .filter((e) => !e.allDay && (!ids || (e.sourceId != null && ids.includes(e.sourceId))) && dayKey(new Date(e.start), tz) === dayStr)
+    .sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  const firstEv = tomorrow ? timed[0] : timed.find((e) => Date.parse(e.start) >= now.getTime());
+  const lastEv = timed.length ? timed.reduce((a, e) => (Date.parse(e.end ?? e.start) > Date.parse(a.end ?? a.start) ? e : a)) : undefined;
+  const lastUse = lastEv && (!firstEv || Date.parse(lastEv.end ?? lastEv.start) > Date.parse(firstEv.start)) ? lastEv : undefined;
+  const leaveM = firstEv ? localHM(new Date(firstEv.start), tz) : parseHM(String(config.leaveTime || '07:30'));
+  const backM = lastUse ? localHM(new Date(lastUse.end ?? lastUse.start), tz) : parseHM(String(config.returnTime || '17:30'));
+  const place = (e?: Ev) => (e?.location ? String(e.location).split(',').slice(0, 2).map((x) => x.trim()).filter((x) => !/^\d+$/.test(x)).pop() ?? '' : '');
   const imperial = units === 'imperial';
   const deg = (c: number) => `${Math.round(imperial ? c * 9 / 5 + 32 : c)}°`;
   const tf = (rest as any).timeFormat;
@@ -66,9 +80,10 @@ export default function DayAhead({ config, style, timezone, units, ...rest }: Pl
   const headline = /^(Dry|Small)/.test(span) ? `${common} · ${span.toLowerCase()}` : span;
   const strip = pts.filter((p) => (p.hour - from) % 2 === 0);
 
-  const trip = (label: string, icon: Shape[], at: number, p: Point | null) => (
+  const trip = (label: string, icon: Shape[], at: number, p: Point | null, ev?: Ev) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35em', padding: '0.7em 0.8em', borderRadius: '0.8em', background: ink(style, 0.05), minWidth: 0 }}>
       <div style={{ ...caps, display: 'flex', alignItems: 'center', gap: '0.45em', opacity: 0.7 }}><Icon d={icon} size="1.2em" stroke={2} />{label} · {fmtH(Math.floor(at / 60), at % 60)}</div>
+      {ev && <div style={{ fontSize: '0.75em', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '-0.15em' }}>{ev.title}{place(ev) ? <span style={{ opacity: 0.5 }}> · {place(ev)}</span> : null}</div>}
       {p ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6em' }}>
           <Icon d={wxIcon(p.code, !p.day)} size="2.4em" stroke={1.5} />
@@ -91,8 +106,8 @@ export default function DayAhead({ config, style, timezone, units, ...rest }: Pl
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.7em' }}>
-        {trip('Leaving', X.out, leaveM, leave)}
-        {trip('Coming home', X.home, backM, back)}
+        {trip(firstEv ? 'Next' : 'Leaving', X.out, leaveM, leave, firstEv)}
+        {trip(lastUse ? 'Last one ends' : 'Coming home', X.home, backM, back, lastUse)}
       </div>
 
       {tipList.length > 0 && (

@@ -1,8 +1,8 @@
 {
   "id": "day-ahead",
   "name": "Day Ahead",
-  "version": "1.0.0",
-  "description": "The weather when you leave, when you come home and hour by hour through the day — with heads-ups for umbrella, frost on the windshield, slippery roads and wind.",
+  "version": "1.1.0",
+  "description": "The weather for your next calendar event and when your last one ends, hour by hour through the day — with heads-ups for umbrella, frost on the windshield, slippery roads and wind.",
   "author": "Tanya",
   "license": "MIT",
   "minAppVersion": "1.7.1",
@@ -15,7 +15,8 @@
     "fromHour": 6,
     "toHour": 22,
     "switchToTomorrowAt": 20,
-    "accentColor": "#059669"
+    "accentColor": "#059669",
+    "personName": "Vince"
   },
   "defaultSize": {
     "w": 1000,
@@ -29,16 +30,23 @@
   "configSchema": {
     "type": "object",
     "properties": {
+      "personName": {
+        "type": "string",
+        "title": "Calendar person",
+        "description": "Next event and last event come from this person's calendar (Settings → Calendar → People). Empty = all calendars.",
+        "ui:widget": "text",
+        "ui:group": "Content"
+      },
       "leaveTime": {
         "type": "string",
-        "title": "Leave home at",
+        "title": "Usual leave time (no events)",
         "ui:widget": "text",
         "ui:group": "Content",
         "description": "HH:MM"
       },
       "returnTime": {
         "type": "string",
-        "title": "Home again at",
+        "title": "Usual home time (no events)",
         "ui:widget": "text",
         "ui:group": "Content",
         "description": "HH:MM"
@@ -82,6 +90,7 @@
     "component": "default"
   },
   "dataRequirements": [
+    "calendar",
     "location"
   ],
   "prefetchUrl": null,
